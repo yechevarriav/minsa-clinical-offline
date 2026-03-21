@@ -8,19 +8,19 @@
 
 ## 📋 Información General del Proyecto
 
-| Campo                           | Valor                                                        |
-| ------------------------------- | ------------------------------------------------------------ |
-| **Nombre del Proyecto**         | _Ingrese el nombre descriptivo de su solución AI/LLM_        |
-| **Participante(s)**             | _Nombre completo del/los integrante(s)_                      |
-| **Instructor**                  | _Nombre del instructor del curso_                            |
-| **Cohorte / Edición**           | _Ej. Cohorte 2025-A_                                         |
-| **Fecha de Inicio**             | _DD/MM/AAAA_                                                 |
-| **Fecha de Entrega Final**      | _DD/MM/AAAA_                                                 |
-| **Versión del Documento**       | _v1.0_                                                       |
-| **Estado del Proyecto**         | _En Planificación_                                           |
-| **Repositorio GitHub/GitLab**   | _https://github.com/yechevarriav/proyecto_final_bsg.git_     |
-| **Entorno Cloud**               | _AWS / Azure / GCP / Otro_                                   |
-| **Stack Tecnológico Principal** | _Ej. Python, LangChain, GPT-4o, FastAPI, Docker, Kubernetes_ |
+| Campo                           | Valor                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Nombre del Proyecto**         | Sistema de Soporte Clínico Offline: Diagnósticos + Procedimientos para Clínicas Rurales MINSA     |
+| **Participante(s)**             | Yvonne Patricia Echevarria Vargas                                                                 |
+| **Instructor**                  | Andrés Rojas                                                                                      |
+| **Cohorte / Edición**           | Cohorte 2026-A                                                                                    |
+| **Fecha de Inicio**             | 10/03/2026                                                                                        |
+| **Fecha de Entrega Final**      | 31/05/2026                                                                                        |
+| **Versión del Documento**       | v1.0 - Capítulos 1-2 (S1-S2)                                                                      |
+| **Estado del Proyecto**         | En Planificación - Especificación de Requerimientos                                               |
+| **Repositorio GitHub/GitLab**   | https://github.com/yechevarriav/minsa-clinical-offline                                            |
+| **Entorno Cloud**               | AWS (región Sudamérica) + Edge (computadoras locales)                                             |
+| **Stack Tecnológico Principal** | Python 3.11, LangChain, Claude 3.5 Sonnet, Llama 7B (cuantizado), FAISS, FastAPI, SQLite, FHIR R4 |
 
 ---
 
@@ -59,27 +59,79 @@ _Síntesis ejecutiva del proyecto que debe permitir a un lector técnico-gerenci
 
 ### 1.1 Propuesta de Valor y Problema que Resuelve
 
-_Describa el problema empresarial específico abordado. Incluya: contexto del negocio, impacto del problema (cuantificado si es posible), y por qué una solución AI/LLM es la estrategia óptima. Mínimo 150 palabras._
+**PROBLEMA EMPRESARIAL:**
+
+En Perú, ~40% de clínicas y sucursales MINSA en zonas rurales (Cusco, Ayacucho, Ucayali, Amazonía) no tienen acceso confiable a internet. Sin embargo, disponen de computadoras (8GB+ RAM) con conectividad ocasional (WiFi nocturna).
+
+**Situación Actual (AS-IS):**
+
+- Médicos toman decisiones diagnósticas sin referencia estructurada
+- Clasificación manual de diagnósticos CIE-10: 5-10 minutos/consulta
+- 35% de diagnósticos iniciales son inconsistentes con protocolos MINSA
+- Procedimientos no se registran en RENHICE (sistema central)
+- Cuando hay internet, cargar RENHICE toma > 30s (conexión débil)
+
+**Impacto Cuantificado:**
+
+- 8,000-20,000 consultas/día en sucursales rurales sin referencia estructurada
+- Cada error diagnóstico requiere re-consulta (duplica costo)
+- 4-6 horas/día de tiempo médico en búsquedas manuales
+- Inconsistencia de datos en RENHICE = auditorías fallidas
+
+**Solución AI/LLM Propuesta (TO-BE):**
+
+Sistema offline que:
+
+1. Sugiere diagnósticos válidos (CIE-10 OMS 2024) en < 3s basado en síntomas
+2. Recupera procedimientos indicados (CIE-9-MC MINSA) para cada diagnóstico
+3. Funciona 100% sin internet (edge AI)
+4. Se sincroniza automáticamente con RENHICE cuando hay conexión
+5. Registra cada sugerencia para feedback loop (mejora v1.1 central)
+
+**¿Por qué AI/LLM y no solución tradicional?**
+
+- Búsqueda SQL estática: No entiende síntomas en lenguaje natural
+- API REST a central: Requiere internet constante (inviable en zonas rurales)
+- LLM offline comprimido: Comprende contexto, funciona offline, genera sugerencias precisas
+
+**ROI esperado:**
+
+- Reducción tiempo consulta: 8 min → 2 min (75% ahorro)
+- Consistencia diagnóstica: +40%
+- Adopción RENHICE: +60%
+- Costo operacional: < USD $150/mes (vs. USD $500+ conexión satelital)
 
 ### 1.2 Alcance y Delimitación
 
 _Defina con precisión qué está IN SCOPE y qué está OUT OF SCOPE para la versión entregada._
 
-| ✅ EN SCOPE                                                 | ❌ OUT OF SCOPE                                               |
-| ----------------------------------------------------------- | ------------------------------------------------------------- |
-| Ej. Integración con fuentes de datos internas de la empresa | Ej. Entrenamiento de modelos desde cero (fine-tuning de base) |
-| Ej. Despliegue en entorno cloud (AWS/Azure/GCP)             | Ej. Soporte en idiomas distintos al español e inglés          |
-| _[Agregue más filas según necesidad]_                       | _[Agregue más filas según necesidad]_                         |
+### 1.2 Alcance y Delimitación
+
+| ✅ EN SCOPE                                                   | ❌ OUT OF SCOPE                                             |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| API REST para consultas diagnósticas (síntomas → CIE-10)      | Fine-tuning del LLM en sucursal (congelado v1.0)            |
+| RAG local indexado con diagnósticos CIE-10 + procedimientos   | Interfaz web compleja (solo API + CLI)                      |
+| Sugerencia automática procedimientos CIE-9-MC indicados       | Integración real-time con RENHICE (sync async semanal)      |
+| Despliegue offline en computadora local (Windows/Linux)       | Soporte multiidioma más allá español e inglés               |
+| Sincronización semanal con servidor central (logs + feedback) | Análisis predictivo (comorbilidades, recurrencia)           |
+| Interfaz CLI para técnico de IT (deploy, config)              | Entrenamiento de modelo local (usar Llama 7B pre-entrenado) |
+| Logging de todas las consultas (mejora v1.1)                  | SLA enterprise > 99.9% (MVP con 99.5%)                      |
+| Soporte idiomas: Español e Inglés (datos OMS públicos)        | Integración con sistemas externos (farmacia, laboratorio)   |
 
 ### 1.3 Indicadores Clave de Éxito (KPIs del Proyecto)
 
-| KPI / Métrica                   | Línea Base   | Meta Objetivo | Resultado Obtenido     |
-| ------------------------------- | ------------ | ------------- | ---------------------- |
-| Latencia promedio (p95)         | N/A          | < 2 segundos  | _[Completar al final]_ |
-| Tasa de éxito de respuestas     | _[Baseline]_ | > 92%         | _[Completar al final]_ |
-| Costo por 1,000 consultas (USD) | _[Baseline]_ | _[Definir]_   | _[Completar al final]_ |
-| Cobertura de pruebas (%)        | 0%           | > 80%         | _[Completar al final]_ |
-| _[KPI adicional]_               |              |               |                        |
+### 1.3 Indicadores Clave de Éxito (KPIs del Proyecto)
+
+| KPI / Métrica                       | Línea Base | Meta Objetivo | Resultado Obtenido     |
+| ----------------------------------- | ---------- | ------------- | ---------------------- |
+| Latencia búsqueda CIE-10 (p95)      | N/A        | < 3 segundos  | _[Completar al final]_ |
+| Precisión sugerencias diagnósticas  | N/A        | >= 90%        | _[Completar al final]_ |
+| Disponibilidad offline (uptime)     | N/A        | >= 99.5%      | _[Completar al final]_ |
+| Precisión RAG (RAGAS faithfulness)  | N/A        | >= 88%        | _[Completar al final]_ |
+| Tasa aceptación médicos (uso real)  | 0%         | >= 80%        | _[Completar al final]_ |
+| Tamaño instalación total            | N/A        | <= 2 GB       | _[Completar al final]_ |
+| Costo operacional mensual (central) | N/A        | < USD $150    | _[Completar al final]_ |
+| Tiempo sincronización (semanal)     | N/A        | < 5 minutos   | _[Completar al final]_ |
 
 ---
 
@@ -87,37 +139,91 @@ _Defina con precisión qué está IN SCOPE y qué está OUT OF SCOPE para la ver
 
 ### 2.1 Contexto del Caso de Uso Empresarial
 
-_Describa el caso de uso empresarial en detalle. Incluya: industria/sector, actor(es) involucrados, flujo de trabajo actual (AS-IS), y flujo de trabajo propuesto (TO-BE). Responda: ¿Quién usa el sistema? ¿Con qué frecuencia? ¿Cuál es el volumen esperado de transacciones?_
+**ANÁLISIS 5W+H:**
+
+**WHO (¿Quién usa el sistema?)**
+
+- Médicos en clínicas rurales MINSA sin internet estable
+- Enfermeras para triage inicial de pacientes
+- Técnicos de IT en sucursal (mantenimiento, actualizaciones)
+- Servidor central MINSA (mejora y redistribución de modelos)
+
+**WHAT (¿Qué debe hacer?)**
+
+- Usuario ingresa síntomas O código CIE-10
+- Sistema RAG busca diagnósticos similares en índice local
+- Sugiere CIE-10 más probable + procedimientos indicados (CIE-9-MC)
+- Registra sugerencia en base local para sincronización posterior
+
+**WHY (¿Por qué AI/LLM y no solución tradicional?)**
+
+- Búsqueda manual en PDF: 5-10 min/consulta (LLM: < 3s)
+- SQL estática: No entiende síntomas en lenguaje natural ("dolor pecho + disnea")
+- API REST a central: Requiere internet constante (inviable en zonas rurales)
+- LLM offline comprimido: Comprende contexto, funciona offline, genera sugerencias precisas
+
+**WHERE (¿Dónde se despliega?)**
+
+- Computadora local en sucursal MINSA (Windows/Linux)
+- RAM: 8GB mínimo | SSD: 2GB disponibles
+- Red: Conexión a internet ocasional (WiFi nocturna, no crítica)
+
+**WHEN (¿Con qué frecuencia y volumen?)**
+
+- Volumen: 20-50 consultas/día por sucursal
+- Picos horarios: 9-12am y 2-4pm (horarios de atención)
+- Sincronización: 1 vez semanal (martes-viernes 22:00)
+
+**HOW (¿Cómo se mide el éxito?)**
+
+- Latencia p95: < 3 segundos
+- Precisión diagnósticos: >= 90% (validación con médicos reales)
+- Uptake: >= 80% médicos usando sistema en mes 1
+- Disponibilidad: 99.5% uptime (solo desconexiones planificadas)
 
 ### 2.2 Requerimientos Funcionales
 
-| ID     | Descripción del Requerimiento                                                                                       | Prioridad           | Criterio de Aceptación                                |
-| ------ | ------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------------- |
-| RF-001 | El sistema debe recibir consultas en lenguaje natural y retornar respuestas coherentes con el contexto empresarial. | Alta                | Respuesta generada en < 3s con coherencia > 90%       |
-| RF-002 | El sistema debe integrar fuentes de datos estructuradas y no estructuradas como contexto (RAG).                     | Alta                | Recuperación correcta en > 85% de consultas de prueba |
-| RF-003 | _[Agregue requerimiento]_                                                                                           | _[Alta/Media/Baja]_ | _[Criterio medible]_                                  |
-| RF-004 | _[Agregue requerimiento]_                                                                                           |                     |                                                       |
-| RF-005 | _[Agregue requerimiento]_                                                                                           |                     |                                                       |
+| ID     | Descripción del Requerimiento                                                                                | Prioridad | Criterio de Aceptación                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------------ |
+| RF-001 | El sistema DEBE procesar síntomas en lenguaje natural (ej: "dolor pecho + disnea") y generar JSON parseable  | Alta      | Entrada < 500 caracteres → JSON válido en < 1.5s       |
+| RF-002 | El sistema DEBE recuperar diagnósticos CIE-10 similares del vector store local usando búsqueda semántica     | Alta      | Top-5 resultados con similarity >= 0.7 en < 2s         |
+| RF-003 | El sistema DEBE sugerir procedimientos indicados (CIE-9-MC) para cada diagnóstico recuperado                 | Alta      | Mínimo 3 procedimientos sugeridos con relevancia       |
+| RF-004 | El sistema DEBE aceptar entrada de código CIE-10 directo y validar contra lista OMS 2024                     | Media     | Validación en < 500ms, error si código inválido        |
+| RF-005 | El sistema DEBE registrar cada consulta (síntomas, diagnósticos sugeridos, timestamp) en base de datos local | Alta      | Registro completo en SQLite con timestamp sincronizado |
+| RF-006 | El sistema DEBE sincronizar con servidor central MINSA una vez semanal, enviando logs + feedback             | Alta      | Sync completado en < 5 minutos sin perder registros    |
+| RF-007 | El sistema DEBE soportar interfaz CLI para técnico IT (deploy, iniciar servicio, listar logs)                | Media     | Comandos funcionales: start, stop, status, logs        |
+| RF-008 | El sistema DEBE aceptar feedback del médico ("diagnóstico correcto/incorrecto") para mejorar modelo v1.1     | Media     | Feedback registrado y sincronizado en próximo ciclo    |
 
 ### 2.3 Requerimientos No Funcionales
 
-| ID      | Categoría      | Descripción                              | Métrica / Umbral                              |
-| ------- | -------------- | ---------------------------------------- | --------------------------------------------- |
-| RNF-001 | Rendimiento    | Latencia de respuesta extremo a extremo  | p95 < 2s bajo carga normal                    |
-| RNF-002 | Escalabilidad  | Capacidad de manejar picos de tráfico    | Auto-scaling hasta N instancias               |
-| RNF-003 | Seguridad      | Autenticación y autorización de usuarios | OAuth 2.0 / JWT, MFA habilitado               |
-| RNF-004 | Disponibilidad | Uptime del servicio                      | >= 99.5% mensual (SLA)                        |
-| RNF-005 | Cumplimiento   | Regulaciones aplicables                  | GDPR / HIPAA / SOC2 (especificar)             |
-| RNF-006 | Observabilidad | Monitoreo y trazabilidad                 | Logs estructurados, dashboards en tiempo real |
-| RNF-007 | _[Categoría]_  | _[Descripción]_                          | _[Umbral medible]_                            |
+### 2.3 Requerimientos No Funcionales
+
+| ID      | Categoría      | Descripción                                | Métrica / Umbral                                |
+| ------- | -------------- | ------------------------------------------ | ----------------------------------------------- |
+| RNF-001 | Rendimiento    | Latencia búsqueda CIE-10 extremo a extremo | p95 < 3s bajo carga normal (10 consultas/min)   |
+| RNF-002 | Escalabilidad  | Manejar múltiples consultas simultáneas    | 5+ consultas concurrentes sin degradación       |
+| RNF-003 | Seguridad      | Autenticación de usuario en sucursal       | Sistema local sin requerir conexión             |
+| RNF-004 | Disponibilidad | Uptime offline garantizado                 | >= 99.5% (solo desconexiones planificadas)      |
+| RNF-005 | Cumplimiento   | Regulaciones sanitarias aplicables         | GDPR (datos pacientes), FHIR R4 compliance      |
+| RNF-006 | Observabilidad | Logging de todas las consultas             | Logs estructurados JSON, búsqueda por timestamp |
+| RNF-007 | Almacenamiento | Tamaño total instalación                   | <= 2 GB (modelo + datos + runtime)              |
+| RNF-008 | Sincronización | Tiempo de sync semanal con central         | < 5 minutos sin bloquear operación local        |
+| RNF-009 | Portabilidad   | Funciona en Windows y Linux                | Docker opcional, instalación standalone         |
+| RNF-010 | Resiliencia    | Manejo de fallos de conexión               | Modo degradado si falla internet (offline full) |
 
 ### 2.4 Restricciones y Supuestos
 
-| Restricciones                                   | Supuestos                                                 |
-| ----------------------------------------------- | --------------------------------------------------------- |
-| Ej. Presupuesto cloud máximo: USD $XXX/mes      | Ej. Los usuarios finales tienen acceso estable a Internet |
-| Ej. No se permite almacenamiento de PII en logs | Ej. El modelo LLM base ya está disponible via API         |
-| _[Agregue restricción]_                         | _[Agregue supuesto]_                                      |
+### 2.4 Restricciones y Supuestos
+
+| Restricciones                                    | Supuestos                                             |
+| ------------------------------------------------ | ----------------------------------------------------- |
+| Presupuesto cloud central: USD $150-200/mes      | Sucursales tienen computadora con 8GB+ RAM disponible |
+| Modelo LLM debe caber en <= 2GB RAM              | Conexión internet disponible 1 vez semanal (noche)    |
+| No se permite almacenamiento de PII en logs      | CIE-10 y CIE-9-MC estándares no cambiarán en 6 meses  |
+| Sincronización debe ser asincrónica (no bloquea) | Médicos adoptarán sistema en fase piloto              |
+| Sin fine-tuning local (congelado v1.0)           | Catálogos públicos OMS disponibles para descarga      |
+| Soporte solo español e inglés (v1.0)             | Sistema puede fallar gracefully sin afectar operación |
+| No integración real-time con RENHICE (async)     | Técnicos IT tienen capacitación mínima para deploy    |
 
 ---
 
@@ -139,16 +245,30 @@ _Figura 1. Diagrama de Arquitectura General — [Nombre del Proyecto] v[X.X]_
 
 ### 3.2 Descripción de Componentes Arquitectónicos
 
-| Componente               | Tecnología / Servicio                             | Responsabilidad Principal                             | Justificación de Selección                         |
-| ------------------------ | ------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------- |
-| API Gateway              | AWS API GW / Kong / FastAPI                       | Enrutamiento, autenticación, rate limiting            | Ej. Bajo costo, integración nativa con Lambda      |
-| Orquestador LLM          | LangChain / LlamaIndex / Semantic Kernel          | Gestión de prompts, cadenas, agentes                  | Ej. Ecosistema maduro, soporte RAG nativo          |
-| Modelo LLM Base          | GPT-4o / Claude 3 / Gemini / Llama 3              | Generación de texto e inferencia                      | _[Justifique la selección con criterios técnicos]_ |
-| Vector Store             | Pinecone / Weaviate / ChromaDB / pgvector         | Almacenamiento y búsqueda semántica (RAG)             | _[Volumen de datos, latencia, costo]_              |
-| Capa de Datos            | _[Ej. RDS, S3, Blob Storage, Cosmos DB]_          | Persistencia de conversaciones, documentos, metadatos | _[Justifique]_                                     |
-| Observabilidad           | _[Ej. CloudWatch, Prometheus, Grafana, Langfuse]_ | Monitoreo, logs, trazas y alertas                     | _[Justifique]_                                     |
-| Seguridad / IAM          | _[Ej. AWS Cognito, Azure AD, Okta]_               | Identidad, permisos, secrets management               | _[Justifique]_                                     |
-| _[Componente adicional]_ |                                                   |                                                       |                                                    |
+### 3.2 Descripción de Componentes Arquitectónicos
+
+| Componente           | Tecnología / Servicio                     | Responsabilidad Principal                            | Justificación de Selección                          |
+| -------------------- | ----------------------------------------- | ---------------------------------------------------- | --------------------------------------------------- |
+| API REST Local       | FastAPI (Python 3.11)                     | Exposición de endpoints diagnóstico/procedimiento    | Ligero, portable, funciona sin dependencias pesadas |
+| Orquestador LLM      | LangChain + FAISS                         | Gestión RAG, recuperación semántica, sugerencias     | LangChain maduro para RAG, FAISS es CPU-friendly    |
+| Modelo LLM Local     | Llama 7B cuantizado (int4, ~150MB)        | Inferencia offline de diagnósticos/procedimientos    | Pequeño, funciona en CPU, precisión > 85%           |
+| Embeddings Local     | Sentence-Transformers (distilbert, ~50MB) | Conversión síntomas → vectores para búsqueda         | Rápido en CPU, sin conexión necesaria               |
+| Vector Store Local   | FAISS (indexado en SQLite)                | Almacenamiento catálogos CIE-10 + procedimientos     | Búsqueda < 100ms, CPU-only, sin servidor            |
+| Base Datos Local     | SQLite (< 500MB)                          | Registro consultas, feedback, logs de sincronización | Portable, sin setup, ACID compliant                 |
+| Sincronización       | Rsync + SSH / S3 SDK                      | Envío logs/feedback a central, descarga modelos v1.1 | Eficiente, solo cambios, tolerante a fallos         |
+| CLI Management       | Python Click + Systemd/Windows Service    | Iniciar/parar servicio, listar logs, configurar sync | Simple, sin GUI, ideal técnicos IT rurales          |
+| Observabilidad Local | Logs JSON + SQLite                        | Trazas consultas, errores, sincronización            | Offline, searchable, bajo overhead                  |
+
+### 3.2b Stack Central (Servidor MINSA)
+
+| Componente             | Tecnología                                         | Responsabilidad                              | Notas                                   |
+| ---------------------- | -------------------------------------------------- | -------------------------------------------- | --------------------------------------- |
+| API Central            | FastAPI / Django REST                              | Recibe sync de sucursales, entrena modelos   | Almacena logs centralizados             |
+| LLM Entrenamiento      | Claude 3.5 Sonnet API (entrenamiento + evaluación) | Mejora continua de modelo central            | Fine-tuning opcional en v1.1            |
+| Vector Store Central   | Weaviate / Pinecone                                | Índice maestro diagnósticos + procedimientos | Respaldo centralizado                   |
+| Database Central       | PostgreSQL                                         | Almacenamiento logs, feedback, versiones     | RENHICE source of truth                 |
+| CI/CD                  | GitHub Actions / Jenkins                           | Deploy de nuevas versiones a sucursales      | Compresión + cuantización automática    |
+| Observabilidad Central | Prometheus + Grafana                               | Monitoreo salud sistema distribuido          | Alertas si sucursal sin sync > 1 semana |
 
 ### 3.3 Diagrama de Flujo de Datos e Integración
 
