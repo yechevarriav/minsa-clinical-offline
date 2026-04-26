@@ -1,7 +1,7 @@
 """
 FastAPI Main Application - Sistema de Soporte Clinico MINSA
-Version 7.0 - Con NER (Named Entity Recognition) para entidades médicas
-SIMPLIFICADO: Sin solicitar edad/sexo (no tiene datos en CIE-10)
+Version 8.0 - Con RAG Pipeline (Retrieval-Augmented Generation)
+Endpoints: /query (RAG), /ingest (documentos), /health
 """
 
 import sys
@@ -11,6 +11,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 import logging
+import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,53 +29,51 @@ semantic_engine = None
 feedback_db = None
 hybrid_search = None
 ner_extractor = None
+rag_engine = None
 
 
-class SymptomsRequest(BaseModel):
-    symptoms: str = Field(..., description="Sintomas en lenguaje natural")
-    max_results: Optional[int] = Field(default=10)
+# ============================================================================
+# SCHEMAS
+# ============================================================================
+
+class QueryRequest(BaseModel):
+    question: str = Field(..., description="Pregunta clínica en lenguaje natural")
+    use_llm: Optional[bool] = Field(default=True, description="Usar Llama-2 LLM")
 
 
-class CIE10Result(BaseModel):
-    code: str
-    description: str
-    relevance: float
-    from_history: Optional[bool] = False
-    history_count: Optional[int] = 0
-    found_by: Optional[List[str]] = []
+class QueryResponse(BaseModel):
+    question: str
+    retrieved_codes: List[dict]
+    context: str
+    llm_response: Optional[str]
+    metrics: dict
+    timestamp: str
 
 
-class SymptomsResponse(BaseModel):
-    query: str
-    results: List[CIE10Result]
-    total_found: int
-    has_history: bool
-    history_count: int
-    ner_symptoms_detected: Optional[List[str]] = []
+class IngestRequest(BaseModel):
+    title: str = Field(..., description="Título del documento")
+    content: str = Field(..., description="Contenido del documento")
 
 
-class SearchAllRequest(BaseModel):
-    query: str = Field(..., description="Buscar en TODO el catalogo")
-    max_results: Optional[int] = Field(default=50)
+class IngestResponse(BaseModel):
+    status: str
+    document_id: str
+    title: str
+    content_length: int
 
 
-class FeedbackRequest(BaseModel):
-    query: str = Field(..., description="Query original")
-    selected_code: str = Field(..., description="Codigo CIE-10 seleccionado")
-    selected_description: Optional[str] = Field(default=None)
-
-
-class FeedbackResponse(BaseModel):
-    success: bool
-    message: str
-    learned_synonyms: Optional[int] = 0
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    components: dict
+    rag_engine: dict
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global catalog_manager, semantic_engine, feedback_db, hybrid_search, ner_extractor
+    global catalog_manager, semantic_engine, feedback_db, hybrid_search, ner_extractor, rag_engine
 
-    logger.info("Initializing Soporte Clinico Offline V7.0 (with NER)...")
+    logger.info("Initializing Soporte Clinico Offline V8.0 (with RAG)...")
 
     try:
         from offline_clinic.core.excel_loader_minsa import CatalogManager
@@ -82,6 +81,7 @@ async def lifespan(app: FastAPI):
         from offline_clinic.core.feedback_db import FeedbackDB
         from offline_clinic.core.hybrid_search_v4 import HybridSearchV4
         from offline_clinic.core.ner_extractor import MedicalNERExtractor
+        from offline_clinic.core.rag_engine import RAGEngine
 
         # 1. Cargar catálogo
         catalog_manager = CatalogManager(
@@ -103,8 +103,12 @@ async def lifespan(app: FastAPI):
         stats = feedback_db.get_stats()
         logger.info(f"Feedback DB stats: {stats}")
 
-        # 5. Motor híbrido con NER
+        # 5. Motor híbrido
         hybrid_search = HybridSearchV4(catalog_manager, semantic_engine, feedback_db, ner_extractor)
+
+        # 6. RAG ENGINE (NUEVO!)
+        logger.info("Initializing RAG Engine...")
+        rag_engine = RAGEngine(hybrid_search, ollama_base_url="http://localhost:11434")
 
         logger.info("System ready!")
 
@@ -118,8 +122,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sistema de Soporte Clinico Offline",
-    description="MINSA Peru - Busqueda con NER + Aprendizaje",
-    version="7.0.0",
+    description="MINSA Peru - RAG + Llama-2 + NER",
+    version="8.0.0",
     lifespan=lifespan
 )
 
@@ -132,197 +136,187 @@ app.add_middleware(
 )
 
 
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
+
 @app.get("/")
 async def root():
     return {
         "message": "Sistema de Soporte Clinico MINSA",
-        "version": "7.0.0",
+        "version": "8.0.0",
         "features": [
             "NER_medical_entity_recognition",
+            "RAG_retrieval_augmented_generation",
+            "Llama2_LLM_inference",
             "semantic_search_medical",
-            "keyword_search",
-            "feedback_learning",
-            "learned_synonyms"
-        ]
+            "feedback_learning"
+        ],
+        "endpoints": {
+            "query": "POST /api/v1/query - RAG pipeline (búsqueda + LLM)",
+            "ingest": "POST /api/v1/ingest - Ingerir documentos",
+            "health": "GET /health - Estado del sistema",
+            "metrics": "GET /api/v1/metrics - Métricas del RAG"
+        }
     }
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health():
-    stats = feedback_db.get_stats() if feedback_db else {}
-    return {
-        "status": "healthy",
-        "version": "7.0.0",
-        "ner_loaded": ner_extractor is not None,
-        "semantic_engine": semantic_engine is not None,
-        "feedback_db": feedback_db is not None,
-        "hybrid_search": hybrid_search is not None,
-        "cie10_codes": len(catalog_manager.get_all_cie10_codes()) if catalog_manager else 0,
-        "feedback_stats": stats
-    }
+    """Estado del sistema y componentes"""
+
+    # Verificar Ollama
+    ollama_available = rag_engine._verify_ollama() if rag_engine else False
+
+    return HealthResponse(
+        status="healthy",
+        version="8.0.0",
+        components={
+            "catalog_loaded": catalog_manager is not None,
+            "ner_loaded": ner_extractor is not None,
+            "semantic_engine": semantic_engine is not None,
+            "feedback_db": feedback_db is not None,
+            "hybrid_search": hybrid_search is not None,
+            "cie10_codes": len(catalog_manager.get_all_cie10_codes()) if catalog_manager else 0,
+        },
+        rag_engine={
+            "loaded": rag_engine is not None,
+            "ollama_available": ollama_available,
+            "model": "llama2:7b"
+        }
+    )
 
 
-@app.post("/api/v1/search", response_model=SymptomsResponse)
-async def search_by_symptoms(request: SymptomsRequest):
+@app.post("/api/v1/query", response_model=QueryResponse)
+async def rag_query(request: QueryRequest):
     """
-    BUSQUEDA CON NER (Named Entity Recognition)
+    PIPELINE RAG COMPLETO
 
-    Pipeline:
-    1. NER detecta entidades médicas (síntomas)
-    2. Búsqueda semántica basada en entidades detectadas
-    3. Re-ranking por historial de feedback
+    1. Retrieval: Busca CIE-10 relevantes con NER + búsqueda semántica
+    2. Augmented: Construye contexto clínico
+    3. Generation: Llama-2 genera respuesta basada en CIE-10
 
     Ejemplo:
-    Input: "Tengo fiebre alta y dolor de cabeza"
-    NER detecta: ["fiebre", "dolor de cabeza"]
-    Retorna: códigos CIE-10 relevantes
-    """
-    if not hybrid_search:
-        raise HTTPException(status_code=503, detail="Search engine not ready")
-
-    import time
-    start = time.time()
-
-    result = hybrid_search.search(
-        query=request.symptoms,
-        patient_age=None,  # NO solicitar edad
-        patient_sex=None,  # NO solicitar sexo
-        max_results=request.max_results
-    )
-
-    processing_time = (time.time() - start) * 1000
-
-    logger.info(
-        f"NER Search '{request.symptoms}' detected {len(result['ner_symptoms_detected'])} symptoms, "
-        f"found {len(result['results'])} results in {processing_time:.0f}ms"
-    )
-
-    cie10_results = [
-        CIE10Result(
-            code=r['code'],
-            description=r['description'],
-            relevance=r['relevance'],
-            from_history=r.get('from_history', False),
-            history_count=r.get('history_count', 0),
-            found_by=r.get('found_by', [])
-        )
-        for r in result['results']
-    ]
-
-    return SymptomsResponse(
-        query=request.symptoms,
-        results=cie10_results,
-        total_found=result['total_found'],
-        has_history=result['has_history'],
-        history_count=result['history_count'],
-        ner_symptoms_detected=result.get('ner_symptoms_detected', [])
-    )
-
-
-@app.post("/api/v1/search/all")
-async def search_all_catalog(request: SearchAllRequest):
-    """Buscar en TODO el catálogo CIE-10"""
-    if not hybrid_search:
-        raise HTTPException(status_code=503, detail="Search engine not ready")
-
-    import time
-    start = time.time()
-
-    results = hybrid_search.search_all(
-        query=request.query,
-        max_results=request.max_results
-    )
-
-    processing_time = (time.time() - start) * 1000
-
-    return {
-        "query": request.query,
-        "results": [
-            CIE10Result(
-                code=r['code'],
-                description=r['description'],
-                relevance=r['relevance']
-            )
-            for r in results
-        ],
-        "total_found": len(results),
-        "processing_time_ms": processing_time
+    ```json
+    {
+        "question": "¿Qué hacer si el paciente tiene fiebre y tos?",
+        "use_llm": true
     }
+    ```
 
-
-@app.post("/api/v1/feedback", response_model=FeedbackResponse)
-async def save_feedback(request: FeedbackRequest):
+    Respuesta:
+    ```json
+    {
+        "question": "¿Qué hacer si el paciente tiene fiebre y tos?",
+        "retrieved_codes": [
+            {"code": "R50", "description": "FIEBRE", "relevance": 0.92},
+            {"code": "R05", "description": "TOS", "relevance": 0.85}
+        ],
+        "context": "...",
+        "llm_response": "Basándose en los códigos CIE-10 identificados...",
+        "metrics": {...}
+    }
+    ```
     """
-    Guardar selección + APRENDER
+    if not rag_engine:
+        raise HTTPException(status_code=503, detail="RAG engine not ready")
 
-    El sistema:
-    1. Guarda la selección en historial
-    2. Aprende entidades NER asociadas al código
-    3. Mejora futuras búsquedas con esa información
-    """
-    if not feedback_db:
-        raise HTTPException(status_code=503, detail="Feedback DB not ready")
+    import time
+    start = time.time()
 
-    if not catalog_manager.validate_cie10(request.selected_code):
-        raise HTTPException(
-            status_code=400,
-            detail=f"CIE-10 invalido: {request.selected_code}"
+    try:
+        result = rag_engine.query(
+            question=request.question,
+            top_k=5,
+            use_llm=request.use_llm
         )
 
-    description = request.selected_description
-    if not description:
-        description = catalog_manager.get_diagnosis(request.selected_code)
+        processing_time = (time.time() - start) * 1000
 
-    success = feedback_db.save_selection(
-        query=request.query,
-        selected_code=request.selected_code,
-        selected_description=description,
-        patient_age=None,
-        patient_sex=None
-    )
-
-    if success:
-        learned = feedback_db.get_learned_synonyms(request.query)
-
-        return FeedbackResponse(
-            success=True,
-            message=f"Aprendido: '{request.query}' -> {request.selected_code}",
-            learned_synonyms=len(learned)
+        logger.info(
+            f"RAG Query completed in {processing_time:.0f}ms - "
+            f"Retrieved {len(result['retrieved_codes'])} codes, "
+            f"LLM: {result['llm_response'] is not None}"
         )
-    else:
-        raise HTTPException(status_code=500, detail="Error guardando feedback")
+
+        return QueryResponse(
+            question=result['question'],
+            retrieved_codes=result['retrieved_codes'],
+            context=result['context'],
+            llm_response=result['llm_response'],
+            metrics=result['metrics'],
+            timestamp=result['timestamp']
+        )
+
+    except Exception as e:
+        logger.error(f"RAG query failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/ner")
-async def test_ner(query: str):
+@app.post("/api/v1/ingest", response_model=IngestResponse)
+async def ingest_document(request: IngestRequest):
     """
-    Endpoint de prueba para NER
+    Ingerir documento clínico (protocolo, guía, manual)
 
-    Muestra qué entidades detecta el extractor para un texto
+    Para E3, esto prepara documentos para indexación futura
+    en motores como Elasticsearch o Pinecone.
+
+    Ejemplo:
+    ```json
+    {
+        "title": "Protocolo MINSA - Manejo de Fiebre en Niños",
+        "content": "..."
+    }
+    ```
     """
-    if not ner_extractor:
-        raise HTTPException(status_code=503, detail="NER not ready")
+    if not rag_engine:
+        raise HTTPException(status_code=503, detail="RAG engine not ready")
 
-    symptoms = ner_extractor.extract_symptoms(query)
+    try:
+        result = rag_engine.ingest_document(
+            title=request.title,
+            content=request.content
+        )
+
+        return IngestResponse(
+            status=result['status'],
+            document_id=result['document_id'],
+            title=result['title'],
+            content_length=result['content_length']
+        )
+
+    except Exception as e:
+        logger.error(f"Document ingestion failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/metrics")
+async def get_metrics():
+    """
+    Reporte de métricas del RAG
+
+    Devuelve:
+    - total_queries: Número total de queries procesadas
+    - avg_elapsed_time_seconds: Tiempo promedio de query
+    - avg_relevance: Relevancia promedio de CIE-10 recuperados
+    - llm_success_rate: Porcentaje de queries donde LLM generó respuesta
+    - metrics_by_query: Detalles de cada query
+    """
+    if not rag_engine:
+        raise HTTPException(status_code=503, detail="RAG engine not ready")
+
+    metrics_report = rag_engine.get_metrics_report()
 
     return {
-        "query": query,
-        "symptoms_detected": [
-            {
-                "entity": s['entity'],
-                "normalized": s['normalized'],
-                "score": s['score'],
-                "label": s['label']
-            }
-            for s in symptoms
-        ],
-        "total_detected": len(symptoms)
+        "status": "ok",
+        "metrics": metrics_report,
+        "timestamp": __import__('datetime').datetime.now().isoformat()
     }
 
 
 @app.get("/api/v1/stats")
 async def get_stats():
-    """Estadísticas del sistema y aprendizaje"""
+    """Estadísticas del sistema y feedback"""
     if not feedback_db:
         raise HTTPException(status_code=503, detail="System not ready")
 
@@ -330,7 +324,9 @@ async def get_stats():
         "system": {
             "cie10_codes": len(catalog_manager.get_all_cie10_codes()) if catalog_manager else 0,
             "procedimientos": len(catalog_manager.get_all_procedimientos()) if catalog_manager else 0,
-            "ner_model": "Custom Regex Patterns (No external model)"
+            "ner_patterns": 13,
+            "embedding_model": "PlanTL-GOB-ES/roberta-base-biomedical-clinical-es",
+            "llm_model": "llama2:7b (via Ollama)"
         },
         "feedback_and_learning": feedback_db.get_stats()
     }
