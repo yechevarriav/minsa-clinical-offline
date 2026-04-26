@@ -42,7 +42,6 @@ COPY --from=builder /opt/venv /opt/venv
 # Copiar código fuente
 COPY src/ /app/src/
 COPY data/ /app/data/
-COPY main.py /app/
 
 # Variables de entorno
 ENV PATH="/opt/venv/bin:$PATH" \
@@ -57,4 +56,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 EXPOSE 8000
 
 # Comando por defecto
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "offline_clinic.main:app", "--host", "0.0.0.0", "--port", "8000"]
