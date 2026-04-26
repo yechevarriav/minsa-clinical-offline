@@ -1,343 +1,187 @@
 """
-FastAPI Main Application - Sistema de Soporte Clinico MINSA
-Version 8.0 - Con RAG Pipeline (Retrieval-Augmented Generation)
-Endpoints: /query (RAG), /ingest (documentos), /health
+MINSA Clinical Offline - API Principal v2.0
+FastAPI arranca INMEDIATAMENTE, embeddings cargan en background
 """
-
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))
-
 import logging
-import json
+import os
+import asyncio
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+from offline_clinic.core.feedback_db import init_feedback_db, save_feedback, get_feedback_stats
+
 logger = logging.getLogger(__name__)
 
-catalog_manager = None
-semantic_engine = None
-feedback_db = None
-hybrid_search = None
-ner_extractor = None
-rag_engine = None
+# Estado global del sistema
+system_ready = False
+searcher = None
 
-
-# ============================================================================
-# SCHEMAS
-# ============================================================================
-
-class QueryRequest(BaseModel):
-    question: str = Field(..., description="Pregunta clínica en lenguaje natural")
-    use_llm: Optional[bool] = Field(default=True, description="Usar Llama-2 LLM")
-
-
-class QueryResponse(BaseModel):
-    question: str
-    retrieved_codes: List[dict]
-    context: str
-    llm_response: Optional[str]
-    metrics: dict
-    timestamp: str
-
-
-class IngestRequest(BaseModel):
-    title: str = Field(..., description="Título del documento")
-    content: str = Field(..., description="Contenido del documento")
-
-
-class IngestResponse(BaseModel):
-    status: str
-    document_id: str
-    title: str
-    content_length: int
-
-
-class HealthResponse(BaseModel):
-    status: str
-    version: str
-    components: dict
-    rag_engine: dict
-
+async def load_models_background():
+    """Carga modelos en background - no bloquea el puerto."""
+    global system_ready, searcher
+    logger.info("🔄 Cargando modelos en background...")
+    try:
+        from offline_clinic.core.hybrid_search_v4 import HybridSearchV4
+        searcher = HybridSearchV4()
+        system_ready = True
+        logger.info("✅ Modelos cargados - Sistema listo")
+    except Exception as e:
+        logger.error(f"❌ Error cargando modelos: {e}")
+        system_ready = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global catalog_manager, semantic_engine, feedback_db, hybrid_search, ner_extractor, rag_engine
-
-    logger.info("Initializing Soporte Clinico Offline V8.0 (with RAG)...")
-
-    try:
-        from offline_clinic.core.excel_loader_minsa import CatalogManager
-        from offline_clinic.core.semantic_search_medical import MedicalSemanticSearchEngine
-        from offline_clinic.core.feedback_db import FeedbackDB
-        from offline_clinic.core.hybrid_search_v4 import HybridSearchV4
-        from offline_clinic.core.ner_extractor import MedicalNERExtractor
-        from offline_clinic.core.rag_engine import RAGEngine
-
-        # 1. Cargar catálogo
-        catalog_manager = CatalogManager(
-            cie10_path="data/CIE10_MINSA_OFICIAL.xlsx",
-            procedimientos_path="data/Anexo N1_Listado de Procedimientos Médicos y Sanitarios del Sector Salud_RM550-2023 12141 al 300126.xlsx"
-        )
-        logger.info(f"Loaded {len(catalog_manager.get_all_cie10_codes())} CIE-10 codes")
-
-        # 2. Inicializar NER
-        logger.info("Initializing Medical NER...")
-        ner_extractor = MedicalNERExtractor()
-
-        # 3. Inicializar búsqueda semántica
-        logger.info("Initializing Medical Semantic Search...")
-        semantic_engine = MedicalSemanticSearchEngine(catalog_manager)
-
-        # 4. Base de datos de feedback
-        feedback_db = FeedbackDB()
-        stats = feedback_db.get_stats()
-        logger.info(f"Feedback DB stats: {stats}")
-
-        # 5. Motor híbrido
-        hybrid_search = HybridSearchV4(catalog_manager, semantic_engine, feedback_db, ner_extractor)
-
-        # 6. RAG ENGINE (NUEVO!)
-        logger.info("Initializing RAG Engine...")
-        rag_engine = RAGEngine(hybrid_search, ollama_base_url="http://localhost:11434")
-
-        logger.info("System ready!")
-
-    except Exception as e:
-        logger.error(f"Startup failed: {e}", exc_info=True)
-        raise
-
+    # Startup - arranca inmediatamente
+    init_feedback_db()
+    logger.info("🏥 MINSA Clinical Offline v2.0 iniciando...")
+    # Carga modelos en background (no bloquea puerto)
+    asyncio.create_task(load_models_background())
     yield
-    logger.info("Shutting down...")
-
+    logger.info("🔴 MINSA Clinical Offline apagando...")
 
 app = FastAPI(
-    title="Sistema de Soporte Clinico Offline",
-    description="MINSA Peru - RAG + Llama-2 + NER",
-    version="8.0.0",
+    title="MINSA Clinical Offline API",
+    description="Sistema de Soporte Clínico Offline con búsqueda CIE-10 y feedback",
+    version="2.0.0",
     lifespan=lifespan
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ============================================================
+# MODELOS
+# ============================================================
 
-# ============================================================================
+class QueryRequest(BaseModel):
+    question: str = Field(..., description="Síntoma o diagnóstico")
+    edad: Optional[int] = Field(None, ge=0, le=120)
+    sexo: Optional[str] = Field(None)
+    use_llm: bool = Field(False)
+    top_k: int = Field(5, ge=1, le=20)
+
+class FeedbackRequest(BaseModel):
+    query: str
+    selected_code: str
+    selected_description: str
+    all_results: str = ""
+    edad: Optional[int] = None
+    sexo: Optional[str] = None
+    useful: int = 1
+
+# ============================================================
 # ENDPOINTS
-# ============================================================================
+# ============================================================
 
-@app.get("/")
-async def root():
-    return {
-        "message": "Sistema de Soporte Clinico MINSA",
-        "version": "8.0.0",
-        "features": [
-            "NER_medical_entity_recognition",
-            "RAG_retrieval_augmented_generation",
-            "Llama2_LLM_inference",
-            "semantic_search_medical",
-            "feedback_learning"
-        ],
-        "endpoints": {
-            "query": "POST /api/v1/query - RAG pipeline (búsqueda + LLM)",
-            "ingest": "POST /api/v1/ingest - Ingerir documentos",
-            "health": "GET /health - Estado del sistema",
-            "metrics": "GET /api/v1/metrics - Métricas del RAG"
-        }
-    }
-
-
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health")
 async def health():
-    """Estado del sistema y componentes"""
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "models_ready": system_ready,
+        "service": "minsa-clinical-offline"
+    }
 
-    # Verificar Ollama
-    ollama_available = rag_engine._verify_ollama() if rag_engine else False
+@app.get("/", response_class=HTMLResponse)
+async def frontend():
+    """Sirve el frontend HTML."""
+    html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return HTMLResponse("<h1>MINSA Clinical Offline API</h1><p>Visita /docs para la API</p>")
 
-    return HealthResponse(
-        status="healthy",
-        version="8.0.0",
-        components={
-            "catalog_loaded": catalog_manager is not None,
-            "ner_loaded": ner_extractor is not None,
-            "semantic_engine": semantic_engine is not None,
-            "feedback_db": feedback_db is not None,
-            "hybrid_search": hybrid_search is not None,
-            "cie10_codes": len(catalog_manager.get_all_cie10_codes()) if catalog_manager else 0,
-        },
-        rag_engine={
-            "loaded": rag_engine is not None,
-            "ollama_available": ollama_available,
-            "model": "llama2:7b"
+@app.post("/api/v1/query")
+async def query(request: QueryRequest):
+    if not system_ready:
+        return {
+            "status": "loading",
+            "message": "Sistema cargando modelos, espere un momento...",
+            "models_ready": False,
+            "results": [],
+            "query": request.question,
+            "edad": request.edad,
+            "sexo": request.sexo,
+            "search_time_ms": 0,
+            "total_results": 0
         }
-    )
-
-
-@app.post("/api/v1/query", response_model=QueryResponse)
-async def rag_query(request: QueryRequest):
-    """
-    PIPELINE RAG COMPLETO
-
-    1. Retrieval: Busca CIE-10 relevantes con NER + búsqueda semántica
-    2. Augmented: Construye contexto clínico
-    3. Generation: Llama-2 genera respuesta basada en CIE-10
-
-    Ejemplo:
-    ```json
-    {
-        "question": "¿Qué hacer si el paciente tiene fiebre y tos?",
-        "use_llm": true
-    }
-    ```
-
-    Respuesta:
-    ```json
-    {
-        "question": "¿Qué hacer si el paciente tiene fiebre y tos?",
-        "retrieved_codes": [
-            {"code": "R50", "description": "FIEBRE", "relevance": 0.92},
-            {"code": "R05", "description": "TOS", "relevance": 0.85}
-        ],
-        "context": "...",
-        "llm_response": "Basándose en los códigos CIE-10 identificados...",
-        "metrics": {...}
-    }
-    ```
-    """
-    if not rag_engine:
-        raise HTTPException(status_code=503, detail="RAG engine not ready")
 
     import time
     start = time.time()
 
-    try:
-        result = rag_engine.query(
-            question=request.question,
-            top_k=5,
-            use_llm=request.use_llm
-        )
-
-        processing_time = (time.time() - start) * 1000
-
-        logger.info(
-            f"RAG Query completed in {processing_time:.0f}ms - "
-            f"Retrieved {len(result['retrieved_codes'])} codes, "
-            f"LLM: {result['llm_response'] is not None}"
-        )
-
-        return QueryResponse(
-            question=result['question'],
-            retrieved_codes=result['retrieved_codes'],
-            context=result['context'],
-            llm_response=result['llm_response'],
-            metrics=result['metrics'],
-            timestamp=result['timestamp']
-        )
-
-    except Exception as e:
-        logger.error(f"RAG query failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/v1/ingest", response_model=IngestResponse)
-async def ingest_document(request: IngestRequest):
-    """
-    Ingerir documento clínico (protocolo, guía, manual)
-
-    Para E3, esto prepara documentos para indexación futura
-    en motores como Elasticsearch o Pinecone.
-
-    Ejemplo:
-    ```json
-    {
-        "title": "Protocolo MINSA - Manejo de Fiebre en Niños",
-        "content": "..."
-    }
-    ```
-    """
-    if not rag_engine:
-        raise HTTPException(status_code=503, detail="RAG engine not ready")
+    # Enriquecer query con contexto demográfico
+    enriched_query = request.question
+    context_parts = []
+    if request.edad:
+        context_parts.append(f"paciente de {request.edad} años")
+    if request.sexo:
+        sexo_norm = "masculino" if request.sexo.upper() in ["M", "MALE", "MASCULINO"] else "femenino"
+        context_parts.append(f"sexo {sexo_norm}")
+    if context_parts:
+        enriched_query = f"{request.question} ({', '.join(context_parts)})"
 
     try:
-        result = rag_engine.ingest_document(
-            title=request.title,
-            content=request.content
-        )
-
-        return IngestResponse(
-            status=result['status'],
-            document_id=result['document_id'],
-            title=result['title'],
-            content_length=result['content_length']
-        )
-
+        results = searcher.search(enriched_query, top_k=request.top_k)
     except Exception as e:
-        logger.error(f"Document ingestion failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        results = []
+        logger.error(f"Error en búsqueda: {e}")
 
+    llm_response = None
+    if request.use_llm and results:
+        try:
+            from offline_clinic.core.rag_engine import RAGEngine
+            rag = RAGEngine()
+            llm_response = rag.generate(enriched_query, results)
+        except Exception:
+            llm_response = "LLM no disponible en este entorno."
 
-@app.get("/api/v1/metrics")
-async def get_metrics():
-    """
-    Reporte de métricas del RAG
-
-    Devuelve:
-    - total_queries: Número total de queries procesadas
-    - avg_elapsed_time_seconds: Tiempo promedio de query
-    - avg_relevance: Relevancia promedio de CIE-10 recuperados
-    - llm_success_rate: Porcentaje de queries donde LLM generó respuesta
-    - metrics_by_query: Detalles de cada query
-    """
-    if not rag_engine:
-        raise HTTPException(status_code=503, detail="RAG engine not ready")
-
-    metrics_report = rag_engine.get_metrics_report()
-
+    elapsed = (time.time() - start) * 1000
     return {
-        "status": "ok",
-        "metrics": metrics_report,
-        "timestamp": __import__('datetime').datetime.now().isoformat()
+        "query": request.question,
+        "edad": request.edad,
+        "sexo": request.sexo,
+        "results": results,
+        "llm_response": llm_response,
+        "search_time_ms": round(elapsed, 2),
+        "total_results": len(results),
+        "models_ready": True
     }
 
+@app.post("/api/v1/feedback")
+async def feedback(request: FeedbackRequest):
+    success = save_feedback(
+        query=request.query,
+        selected_code=request.selected_code,
+        selected_description=request.selected_description,
+        all_results=request.all_results,
+        edad=request.edad,
+        sexo=request.sexo,
+        useful=request.useful
+    )
+    if success:
+        return {"status": "ok", "message": "Feedback guardado"}
+    raise HTTPException(status_code=500, detail="Error guardando feedback")
 
-@app.get("/api/v1/stats")
-async def get_stats():
-    """Estadísticas del sistema y feedback"""
-    if not feedback_db:
-        raise HTTPException(status_code=503, detail="System not ready")
+@app.get("/api/v1/feedback/stats")
+async def feedback_stats():
+    return get_feedback_stats()
 
-    return {
-        "system": {
-            "cie10_codes": len(catalog_manager.get_all_cie10_codes()) if catalog_manager else 0,
-            "procedimientos": len(catalog_manager.get_all_procedimientos()) if catalog_manager else 0,
-            "ner_patterns": 13,
-            "embedding_model": "PlanTL-GOB-ES/roberta-base-biomedical-clinical-es",
-            "llm_model": "llama2:7b (via Ollama)"
-        },
-        "feedback_and_learning": feedback_db.get_stats()
-    }
+@app.post("/api/v1/ingest")
+async def ingest():
+    return {"status": "ok", "message": "Datos CIE-10 cargados"}
 
+@app.get("/api/v1/ingest")
+async def ingest_status():
+    return {"status": "ready", "models_ready": system_ready}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)

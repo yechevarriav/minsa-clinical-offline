@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MINSA Clinical Offline - Soporte Clínico</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f0f4f8;
+        color: #2d3748;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #1a5276, #2980b9);
+        color: white;
+        padding: 20px 30px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
+      .header img {
+        width: 50px;
+      }
+      .header h1 {
+        font-size: 1.4em;
+      }
+      .header p {
+        font-size: 0.85em;
+        opacity: 0.9;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 30px auto;
+        padding: 0 20px;
+      }
+
+      .card {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      .card h2 {
+        color: #1a5276;
+        margin-bottom: 20px;
+        font-size: 1.1em;
+        border-bottom: 2px solid #edf2f7;
+        padding-bottom: 10px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .form-group label {
+        font-size: 0.85em;
+        font-weight: 600;
+        color: #4a5568;
+      }
+      .form-group input,
+      .form-group select {
+        padding: 10px 14px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.95em;
+        transition: border-color 0.2s;
+      }
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: none;
+        border-color: #2980b9;
+      }
+
+      .query-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 1em;
+        margin-bottom: 15px;
+        transition: border-color 0.2s;
+      }
+      .query-input:focus {
+        outline: none;
+        border-color: #2980b9;
+      }
+
+      .btn-search {
+        background: linear-gradient(135deg, #1a5276, #2980b9);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 8px;
+        font-size: 1em;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        transition: opacity 0.2s;
+      }
+      .btn-search:hover {
+        opacity: 0.9;
+      }
+      .btn-search:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .results-container {
+        margin-top: 20px;
+      }
+
+      .result-item {
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .result-item:hover {
+        border-color: #2980b9;
+        background: #ebf5fb;
+      }
+      .result-item.selected {
+        border-color: #27ae60;
+        background: #eafaf1;
+      }
+
+      .result-code {
+        background: #1a5276;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.9em;
+        min-width: 70px;
+        text-align: center;
+      }
+      .result-desc {
+        flex: 1;
+        margin: 0 15px;
+        font-size: 0.95em;
+      }
+      .result-score {
+        color: #718096;
+        font-size: 0.8em;
+      }
+
+      .btn-select {
+        background: #27ae60;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85em;
+        font-weight: 600;
+      }
+      .btn-select:hover {
+        background: #219a52;
+      }
+
+      .feedback-msg {
+        background: #eafaf1;
+        border: 1px solid #27ae60;
+        color: #1e8449;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-top: 15px;
+        display: none;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 30px;
+        color: #718096;
+        display: none;
+      }
+      .loading::after {
+        content: "";
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #2980b9;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-left: 10px;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .stats-bar {
+        background: #edf2f7;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-size: 0.85em;
+        color: #4a5568;
+        margin-top: 10px;
+      }
+
+      .llm-response {
+        background: #f8f9fa;
+        border-left: 4px solid #2980b9;
+        padding: 15px;
+        border-radius: 0 8px 8px 0;
+        margin-top: 15px;
+        font-size: 0.95em;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1>🏥 MINSA - Sistema de Soporte Clínico</h1>
+        <p>Búsqueda inteligente de códigos CIE-10 y procedimientos médicos</p>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- Panel de búsqueda -->
+      <div class="card">
+        <h2>🔍 Consulta Clínica</h2>
+
+        <!-- Datos demográficos del paciente -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label>👤 Edad del Paciente (años)</label>
+            <input
+              type="number"
+              id="edad"
+              placeholder="Ej: 45"
+              min="0"
+              max="120"
+            />
+          </div>
+          <div class="form-group">
+            <label>⚧ Sexo del Paciente</label>
+            <select id="sexo">
+              <option value="">No especificado</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Query principal -->
+        <input
+          type="text"
+          id="query"
+          class="query-input"
+          placeholder="Describe los síntomas o diagnóstico (ej: fiebre alta con tos, dolor abdominal, hipertensión)..."
+        />
+
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            cursor: pointer;
+          "
+        >
+          <input type="checkbox" id="use_llm" />
+          <span>Usar IA (Llama-2) para enriquecer respuesta</span>
+        </label>
+
+        <button class="btn-search" onclick="buscar()">
+          🔍 Buscar Códigos CIE-10
+        </button>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading" id="loading">Buscando en base de datos MINSA</div>
+
+      <!-- Resultados -->
+      <div class="card" id="results-card" style="display: none">
+        <h2>📋 Resultados</h2>
+        <div class="stats-bar" id="stats-bar"></div>
+        <div class="results-container" id="results"></div>
+        <div class="llm-response" id="llm-response" style="display: none"></div>
+        <div class="feedback-msg" id="feedback-msg">
+          ✅ Selección guardada. Gracias por contribuir a mejorar el sistema.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Configuración - cambia la URL base según tu deployment
+      const API_BASE = window.location.origin;
+
+      let currentQuery = "";
+      let currentResults = [];
+      let currentEdad = null;
+      let currentSexo = null;
+
+      async function buscar() {
+        const query = document.getElementById("query").value.trim();
+        const edad = parseInt(document.getElementById("edad").value) || null;
+        const sexo = document.getElementById("sexo").value || null;
+        const useLlm = document.getElementById("use_llm").checked;
+
+        if (!query) {
+          alert("Por favor ingrese una consulta clínica");
+          return;
+        }
+
+        currentQuery = query;
+        currentEdad = edad;
+        currentSexo = sexo;
+
+        document.getElementById("loading").style.display = "block";
+        document.getElementById("results-card").style.display = "none";
+        document.getElementById("feedback-msg").style.display = "none";
+
+        try {
+          const resp = await fetch(`${API_BASE}/api/v1/query`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              question: query,
+              edad: edad,
+              sexo: sexo,
+              use_llm: useLlm,
+              top_k: 8,
+            }),
+          });
+
+          const data = await resp.json();
+          currentResults = data.results || [];
+
+          mostrarResultados(data);
+        } catch (e) {
+          alert("Error conectando con el servidor: " + e.message);
+        } finally {
+          document.getElementById("loading").style.display = "none";
+        }
+      }
+
+      function mostrarResultados(data) {
+        const card = document.getElementById("results-card");
+        const container = document.getElementById("results");
+        const statsBar = document.getElementById("stats-bar");
+
+        // Stats
+        let statsText = `⏱️ ${data.search_time_ms}ms | 📊 ${data.total_results} resultados`;
+        if (data.edad) statsText += ` | 👤 ${data.edad} años`;
+        if (data.sexo)
+          statsText += ` | ${data.sexo === "M" ? "♂" : "♀"} ${data.sexo === "M" ? "Masculino" : "Femenino"}`;
+        statsBar.textContent = statsText;
+
+        // Resultados
+        container.innerHTML = "";
+
+        if (!currentResults.length) {
+          container.innerHTML =
+            '<p style="color:#718096;text-align:center;padding:20px;">No se encontraron resultados.</p>';
+        } else {
+          currentResults.forEach((r, i) => {
+            const code = r.code || r.codigo || "N/A";
+            const desc =
+              r.description || r.descripcion || r.text || "Sin descripción";
+            const score = r.score
+              ? `Score: ${(r.score * 100).toFixed(1)}%`
+              : "";
+
+            container.innerHTML += `
+                    <div class="result-item" id="result-${i}">
+                        <span class="result-code">${code}</span>
+                        <span class="result-desc">${desc}</span>
+                        <span class="result-score">${score}</span>
+                        <button class="btn-select" onclick="seleccionar(${i}, '${code}', \`${desc.replace(/`/g, "'")}\`)">
+                            ✓ Seleccionar
+                        </button>
+                    </div>
+                `;
+          });
+        }
+
+        // LLM response
+        const llmDiv = document.getElementById("llm-response");
+        if (data.llm_response) {
+          llmDiv.textContent = "🤖 " + data.llm_response;
+          llmDiv.style.display = "block";
+        } else {
+          llmDiv.style.display = "none";
+        }
+
+        card.style.display = "block";
+      }
+
+      async function seleccionar(index, code, description) {
+        // Marcar como seleccionado visualmente
+        document
+          .querySelectorAll(".result-item")
+          .forEach((el) => el.classList.remove("selected"));
+        document.getElementById(`result-${index}`).classList.add("selected");
+
+        // Guardar feedback
+        try {
+          await fetch(`${API_BASE}/api/v1/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: currentQuery,
+              selected_code: code,
+              selected_description: description,
+              all_results: JSON.stringify(currentResults),
+              edad: currentEdad,
+              sexo: currentSexo,
+              useful: 1,
+            }),
+          });
+
+          document.getElementById("feedback-msg").style.display = "block";
+          setTimeout(() => {
+            document.getElementById("feedback-msg").style.display = "none";
+          }, 4000);
+        } catch (e) {
+          console.warn("Error guardando feedback:", e);
+        }
+      }
+
+      // Enter para buscar
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("query").addEventListener("keypress", (e) => {
+          if (e.key === "Enter") buscar();
+        });
+      });
+    </script>
+  </body>
+</html>
