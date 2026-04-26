@@ -1,7 +1,6 @@
 """
 MINSA Clinical Offline - API Principal v2.0
-FastAPI arranca INMEDIATAMENTE, embeddings cargan en background
-Fix: HybridSearchV4 instanciado correctamente con sus 4 dependencias
+Fix: FeedbackDB → funciones sueltas (init_feedback_db, save_feedback, get_feedback_stats)
 """
 import logging
 import os
@@ -13,56 +12,49 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+# ✅ CORRECTO: importar funciones sueltas (no clase FeedbackDB)
 from offline_clinic.core.feedback_db import init_feedback_db, save_feedback, get_feedback_stats
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Estado global del sistema
 system_ready = False
 searcher = None
 
 async def load_models_background():
-    """Carga modelos en background - no bloquea el puerto."""
     global system_ready, searcher
     logger.info("🔄 Cargando modelos en background...")
     try:
         loop = asyncio.get_event_loop()
 
         def _load():
-            # 1. CatalogManager
             from offline_clinic.core.excel_loader_minsa import CatalogManager
             catalog_manager = CatalogManager(
                 cie10_path="data/CIE10_MINSA_OFICIAL.xlsx",
                 procedimientos_path="data/Anexo N1_Listado de Procedimientos Médicos y Sanitarios del Sector Salud_RM550-2023 12141 al 300126.xlsx"
             )
-            logger.info(f"✅ CatalogManager cargado: {len(catalog_manager.get_all_cie10_codes())} códigos CIE-10")
+            logger.info(f"✅ CatalogManager: {len(catalog_manager.get_all_cie10_codes())} códigos CIE-10")
 
-            # 2. SemanticEngine
             from offline_clinic.core.semantic_search_medical import MedicalSemanticSearchEngine
             semantic_engine = MedicalSemanticSearchEngine(catalog_manager)
             logger.info("✅ SemanticEngine cargado")
 
-            # 3. FeedbackDB
-            from offline_clinic.core.feedback_db import FeedbackDB
-            feedback_db = FeedbackDB(db_path="feedback.db")
-            logger.info("✅ FeedbackDB cargado")
+            # ✅ CORRECTO: FeedbackDB como clase desde feedback_db
+            # Pero como no existe la clase, usamos None y las funciones sueltas
+            feedback_db_instance = None
 
-            # 4. NERExtractor
             from offline_clinic.core.ner_extractor import MedicalNERExtractor
             ner_extractor = MedicalNERExtractor()
             logger.info("✅ NERExtractor cargado")
 
-            # 5. HybridSearchV4 con sus 4 dependencias
             from offline_clinic.core.hybrid_search_v4 import HybridSearchV4
-            hybrid = HybridSearchV4(catalog_manager, semantic_engine, feedback_db, ner_extractor)
+            hybrid = HybridSearchV4(catalog_manager, semantic_engine, feedback_db_instance, ner_extractor)
             logger.info("✅ HybridSearchV4 cargado")
-
             return hybrid
 
         searcher = await loop.run_in_executor(None, _load)
         system_ready = True
-        logger.info("🏥 Sistema MINSA Clinical listo para consultas!")
+        logger.info("🏥 Sistema MINSA Clinical listo!")
 
     except Exception as e:
         logger.error(f"❌ Error cargando modelos: {e}")
@@ -70,13 +62,11 @@ async def load_models_background():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializar feedback DB simple
     init_feedback_db()
     logger.info("🏥 MINSA Clinical Offline v2.0 iniciando...")
-    # Carga modelos en background (no bloquea puerto 8000)
     asyncio.create_task(load_models_background())
     yield
-    logger.info("🔴 MINSA Clinical Offline apagando...")
+    logger.info("🔴 Apagando...")
 
 app = FastAPI(
     title="MINSA Clinical Offline API",
@@ -92,14 +82,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============================================================
-# MODELOS
-# ============================================================
-
 class QueryRequest(BaseModel):
     question: str = Field(..., description="Síntoma o diagnóstico")
-    edad: Optional[int] = Field(None, ge=0, le=120, description="Edad del paciente")
-    sexo: Optional[str] = Field(None, description="Sexo del paciente (M/F)")
+    edad: Optional[int] = Field(None, ge=0, le=120)
+    sexo: Optional[str] = Field(None)
     use_llm: bool = Field(False)
     top_k: int = Field(5, ge=1, le=20)
 
@@ -111,10 +97,6 @@ class FeedbackRequest(BaseModel):
     edad: Optional[int] = None
     sexo: Optional[str] = None
     useful: int = 1
-
-# ============================================================
-# ENDPOINTS
-# ============================================================
 
 @app.get("/health")
 async def health():
@@ -131,10 +113,10 @@ async def frontend():
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:
             return f.read()
-    return HTMLResponse("""
+    return HTMLResponse(f"""
     <html><body style='font-family:sans-serif;padding:40px'>
     <h1>🏥 MINSA Clinical Offline API</h1>
-    <p>Estado: <b>""" + ("✅ Sistema listo" if system_ready else "⏳ Cargando modelos...") + """</b></p>
+    <p>Estado: <b>{"✅ Sistema listo" if system_ready else "⏳ Cargando modelos..."}</b></p>
     <p><a href='/docs'>📖 Ver documentación API (Swagger)</a></p>
     <p><a href='/health'>❤️ Health check</a></p>
     </body></html>
@@ -158,7 +140,6 @@ async def query(request: QueryRequest):
     import time
     start = time.time()
 
-    # Enriquecer query con contexto demográfico
     enriched_query = request.question
     context_parts = []
     if request.edad:
@@ -182,7 +163,7 @@ async def query(request: QueryRequest):
             rag = RAGEngine(searcher, ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
             llm_response = rag.generate(enriched_query, results)
         except Exception:
-            llm_response = "LLM (Llama-2) no disponible en este entorno cloud. Disponible en instalación local."
+            llm_response = "LLM (Llama-2) no disponible en entorno cloud."
 
     elapsed = (time.time() - start) * 1000
     return {
