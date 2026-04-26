@@ -41,7 +41,8 @@ async def load_models_background():
 
             # ✅ CORRECTO: FeedbackDB como clase desde feedback_db
             # Pero como no existe la clase, usamos None y las funciones sueltas
-            feedback_db_instance = None
+            from offline_clinic.core.feedback_db import FeedbackDB
+            feedback_db_instance = FeedbackDB(db_path="feedback.db")
 
             from offline_clinic.core.ner_extractor import MedicalNERExtractor
             ner_extractor = MedicalNERExtractor()
