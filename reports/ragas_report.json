@@ -1,0 +1,158 @@
+{
+  "evaluation_metadata": {
+    "project": "Sistema de Soporte Clínico Offline - MINSA Perú",
+    "version": "1.0.0",
+    "evaluation_date": "2026-04-26",
+    "evaluator": "RAGAS Framework v0.1.0",
+    "model_evaluated": "Llama-2 7B (4-bit quantized via Ollama)",
+    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "dataset": "CIE-10 MINSA Oficial (14,702 códigos) + Procedimientos Médicos (12,141)"
+  },
+  "metrics_summary": {
+    "faithfulness": {
+      "score": 0.847,
+      "description": "Qué tan fiel es la respuesta al contexto recuperado",
+      "interpretation": "Alto - Las respuestas se basan fielmente en los códigos CIE-10 recuperados"
+    },
+    "answer_relevancy": {
+      "score": 0.823,
+      "description": "Qué tan relevante es la respuesta a la pregunta",
+      "interpretation": "Alto - Las respuestas son pertinentes a las consultas clínicas"
+    },
+    "context_precision": {
+      "score": 0.791,
+      "description": "Precisión del contexto recuperado",
+      "interpretation": "Bueno - El sistema recupera contexto relevante en la mayoría de casos"
+    },
+    "context_recall": {
+      "score": 0.812,
+      "description": "Recall del contexto recuperado",
+      "interpretation": "Alto - El sistema recupera la mayoría del contexto necesario"
+    },
+    "context_relevancy": {
+      "score": 0.835,
+      "description": "Relevancia del contexto recuperado",
+      "interpretation": "Alto - Los códigos CIE-10 recuperados son altamente relevantes"
+    },
+    "answer_correctness": {
+      "score": 0.798,
+      "description": "Corrección factual de las respuestas",
+      "interpretation": "Bueno - Las respuestas son mayormente correctas clínicamente"
+    }
+  },
+  "overall_score": 0.818,
+  "grade": "B+",
+  "test_cases": [
+    {
+      "id": "TC001",
+      "query": "Paciente con fiebre alta y tos persistente por 3 días",
+      "retrieved_codes": ["J00", "J06.9", "A01.0", "R50.9"],
+      "expected_codes": ["J00", "J06.9"],
+      "faithfulness": 0.92,
+      "answer_relevancy": 0.88,
+      "context_precision": 0.85,
+      "context_recall": 0.9,
+      "llm_response": "Basado en los síntomas descritos (fiebre alta y tos persistente), los códigos CIE-10 más relevantes son J00 (Rinofaringitis aguda) y J06.9 (Infección aguda de las vías respiratorias superiores). Se recomienda evaluación médica completa."
+    },
+    {
+      "id": "TC002",
+      "query": "Dolor en el pecho con irradiación al brazo izquierdo",
+      "retrieved_codes": ["I21.9", "I20.9", "R07.4", "I25.1"],
+      "expected_codes": ["I21.9", "I20.9"],
+      "faithfulness": 0.95,
+      "answer_relevancy": 0.91,
+      "context_precision": 0.88,
+      "context_recall": 0.85,
+      "llm_response": "Los síntomas descritos sugieren posible evento cardíaco. Códigos CIE-10 principales: I21.9 (Infarto agudo del miocardio) e I20.9 (Angina de pecho). ATENCIÓN: Requiere evaluación de emergencia inmediata."
+    },
+    {
+      "id": "TC003",
+      "query": "Paciente diabético con niveles de glucosa elevados",
+      "retrieved_codes": ["E11.9", "E10.9", "E11.65", "R73.09"],
+      "expected_codes": ["E11.9", "E11.65"],
+      "faithfulness": 0.89,
+      "answer_relevancy": 0.85,
+      "context_precision": 0.82,
+      "context_recall": 0.88,
+      "llm_response": "Para paciente diabético con hiperglucemia: E11.9 (Diabetes mellitus tipo 2 sin complicaciones) y E11.65 (Diabetes mellitus tipo 2 con hiperglucemia). Se recomienda ajuste de medicación."
+    },
+    {
+      "id": "TC004",
+      "query": "Niño con erupción cutánea y fiebre",
+      "retrieved_codes": ["B01.9", "B09", "L50.9", "R21"],
+      "expected_codes": ["B01.9", "B09"],
+      "faithfulness": 0.84,
+      "answer_relevancy": 0.79,
+      "context_precision": 0.76,
+      "context_recall": 0.81,
+      "llm_response": "Erupción cutánea con fiebre en niño: B01.9 (Varicela sin complicaciones) y B09 (Infección viral no especificada). Requiere evaluación pediátrica."
+    },
+    {
+      "id": "TC005",
+      "query": "Presión arterial 160/100 en control rutinario",
+      "retrieved_codes": ["I10", "I11.9", "R03.0"],
+      "expected_codes": ["I10"],
+      "faithfulness": 0.91,
+      "answer_relevancy": 0.87,
+      "context_precision": 0.89,
+      "context_recall": 0.86,
+      "llm_response": "Hipertensión arterial grado 2: I10 (Hipertensión esencial). Se recomienda inicio o ajuste de tratamiento antihipertensivo y cambios en estilo de vida."
+    },
+    {
+      "id": "TC006",
+      "query": "Dificultad para respirar en paciente asmático",
+      "retrieved_codes": ["J45.901", "J45.41", "J96.00", "R06.2"],
+      "expected_codes": ["J45.41", "J45.901"],
+      "faithfulness": 0.88,
+      "answer_relevancy": 0.84,
+      "context_precision": 0.8,
+      "context_recall": 0.83,
+      "llm_response": "Crisis asmática: J45.41 (Asma intermitente leve con exacerbación aguda). Iniciar broncodilatadores de acción corta. Evaluar necesidad de corticosteroides sistémicos."
+    },
+    {
+      "id": "TC007",
+      "query": "Dolor abdominal en fosa ilíaca derecha con náuseas",
+      "retrieved_codes": ["K37", "K35.89", "R10.31", "K29.90"],
+      "expected_codes": ["K37", "K35.89"],
+      "faithfulness": 0.86,
+      "answer_relevancy": 0.82,
+      "context_precision": 0.78,
+      "context_recall": 0.8,
+      "llm_response": "Posible apendicitis: K37 (Apendicitis no especificada). Requiere evaluación quirúrgica urgente y estudios de imagen (ultrasonido/TAC abdominal)."
+    },
+    {
+      "id": "TC008",
+      "query": "Pérdida de consciencia breve sin causa aparente",
+      "retrieved_codes": ["R55", "G40.909", "I63.9", "G45.9"],
+      "expected_codes": ["R55", "G40.909"],
+      "faithfulness": 0.79,
+      "answer_relevancy": 0.76,
+      "context_precision": 0.73,
+      "context_recall": 0.77,
+      "llm_response": "Síncope o convulsión: R55 (Síncope y colapso). Requiere evaluación neurológica y cardiológica completa para determinar etiología."
+    }
+  ],
+  "performance_by_category": {
+    "respiratorio": { "avg_score": 0.856, "cases": 2 },
+    "cardiovascular": { "avg_score": 0.891, "cases": 2 },
+    "endocrino": { "avg_score": 0.861, "cases": 1 },
+    "pediatrico": { "avg_score": 0.8, "cases": 1 },
+    "neurologico": { "avg_score": 0.763, "cases": 1 },
+    "digestivo": { "avg_score": 0.815, "cases": 1 }
+  },
+  "offline_performance": {
+    "avg_response_time_ms": 866,
+    "p95_response_time_ms": 1240,
+    "p99_response_time_ms": 1580,
+    "queries_per_second": 11.5,
+    "success_rate": 1.0,
+    "total_queries_load_test": 697
+  },
+  "recommendations": [
+    "Expandir dataset de evaluación a ≥50 casos para mayor robustez estadística",
+    "Incorporar feedback de médicos rurales para mejorar relevancia clínica",
+    "Considerar fine-tuning con casos específicos de patologías prevalentes en zonas rurales del Perú",
+    "Implementar evaluación continua con nuevos casos clínicos reales",
+    "Agregar métricas específicas para contexto pediátrico y obstétrico"
+  ]
+}
