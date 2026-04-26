@@ -152,7 +152,8 @@ async def query(request: QueryRequest):
         enriched_query = f"{request.question} ({', '.join(context_parts)})"
 
     try:
-        results = searcher.search(enriched_query, top_k=request.top_k)
+        results_data = searcher.search(enriched_query, max_results=request.top_k)
+        results = results_data.get("results", []) if isinstance(results_data, dict) else results_data
     except Exception as e:
         results = []
         logger.error(f"Error en búsqueda: {e}")
