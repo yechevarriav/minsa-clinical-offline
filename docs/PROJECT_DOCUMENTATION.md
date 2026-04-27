@@ -720,7 +720,7 @@ ECR Repository → CloudWatch Logs: /ecs/minsa-clinical
 
 | Objetivo E4             | Meta                 | Resultado           | Estado |
 | ----------------------- | -------------------- | ------------------- | ------ |
-| CI/CD pipeline en verde | GitHub Actions VERDE | Tests CI #15 VERDE  | ✅     |
+| CI/CD pipeline en verde | GitHub Actions VERDE | Tests CI #20 VERDE  | ✅     |
 | URL pública en cloud    | URL funcional        | Render.com          | ✅     |
 | Deploy con Docker       | Dockerfile funcional | python:3.10-slim    | ✅     |
 | Feedback con edad+sexo  | Nuevo endpoint       | /api/v1/feedback    | ✅     |
