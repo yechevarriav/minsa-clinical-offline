@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # ==================== FASTAPI APP ====================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: minsa-clinical-offline-app
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=docker
+    volumes:
+      - ./src:/app/src:ro
+      - ./data:/app/data:ro
+      - ./logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - minsa-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # ==================== OLLAMA (LLM LOCAL) ====================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: minsa-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_MODELS=/root/.ollama/models
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - minsa-network
+    restart: unless-stopped
+    # Nota: Ejecutar después de iniciar:
+    # docker-compose exec ollama ollama pull llama2:7b-q4_K_M
+
+networks:
+  minsa-network:
+    driver: bridge
+
+volumes:
+  ollama_data:
+    driver: local

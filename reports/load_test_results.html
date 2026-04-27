@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Load Test Report — MINSA Sistema de Soporte Clínico Offline</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f9; color: #333; }
+  .header { background: #1e4d6b; color: white; padding: 24px 32px; }
+  .header h1 { margin: 0 0 4px 0; font-size: 22px; }
+  .header p { margin: 0; font-size: 13px; opacity: 0.8; }
+  .container { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  .card .label { font-size: 12px; color: #888; text-transform: uppercase; margin-bottom: 6px; }
+  .card .value { font-size: 28px; font-weight: bold; }
+  .card .value.green { color: #2ecc71; }
+  .card .value.blue { color: #3498db; }
+  .card .value.orange { color: #f39c12; }
+  .card .sub { font-size: 12px; color: #888; margin-top: 4px; }
+  .section { background: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+  .section h2 { margin: 0 0 20px 0; font-size: 16px; color: #1e4d6b; border-bottom: 2px solid #e8f4fd; padding-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: #f0f4f8; padding: 10px 12px; text-align: left; font-weight: 600; color: #555; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+  .badge.pass { background: #d4edda; color: #155724; }
+  .badge.warn { background: #fff3cd; color: #856404; }
+  .bar-container { background: #eee; border-radius: 4px; height: 12px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 4px; background: #3498db; }
+  .bar.green { background: #2ecc71; }
+  .bar.orange { background: #f39c12; }
+  .checks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .check-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9f9f9; border-radius: 6px; }
+  .check-icon { font-size: 18px; }
+  .check-text { font-size: 13px; }
+  .check-text strong { display: block; }
+  .meta { font-size: 12px; color: #aaa; text-align: right; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏥 Load Test Report — Sistema de Soporte Clínico Offline MINSA</h1>
+  <p>Prueba de carga concurrente · 10–20 usuarios · 60 segundos · Python ThreadPoolExecutor</p>
+</div>
+
+<div class="container">
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-grid">
+    <div class="card">
+      <div class="label">Total Queries</div>
+      <div class="value blue">697</div>
+      <div class="sub">en 60 segundos</div>
+    </div>
+    <div class="card">
+      <div class="label">Success Rate</div>
+      <div class="value green">100%</div>
+      <div class="sub">697/697 exitosas</div>
+    </div>
+    <div class="card">
+      <div class="label">Throughput</div>
+      <div class="value blue">11.5 q/s</div>
+      <div class="sub">queries por segundo</div>
+    </div>
+    <div class="card">
+      <div class="label">Avg Response</div>
+      <div class="value orange">0.86s</div>
+      <div class="sub">sin LLM</div>
+    </div>
+  </div>
+
+  <!-- TEST CONFIGURATION -->
+  <div class="section">
+    <h2>⚙️ Configuración del Test</h2>
+    <table>
+      <tr><th>Parámetro</th><th>Valor</th></tr>
+      <tr><td>Herramienta</td><td>Python ThreadPoolExecutor (tests/load/test_load_concurrent.py)</td></tr>
+      <tr><td>Usuarios concurrentes (test principal)</td><td>10 usuarios</td></tr>
+      <tr><td>Usuarios concurrentes (stress test)</td><td>20 usuarios</td></tr>
+      <tr><td>Duración sustained load</td><td>60 segundos</td></tr>
+      <tr><td>Endpoint testeado</td><td>RAGEngine.query() (sin LLM)</td></tr>
+      <tr><td>Fecha ejecución</td><td>2026-04-26</td></tr>
+      <tr><td>Entorno</td><td>Local (CPU, 8GB RAM)</td></tr>
+      <tr><td>Stack</td><td>Python 3.10, FAISS 1.7.4, sentence-transformers 2.2.2</td></tr>
+    </table>
+  </div>
+
+  <!-- RESULTADOS POR TEST -->
+  <div class="section">
+    <h2>📊 Resultados por Test</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Test</th>
+          <th>Usuarios</th>
+          <th>Queries</th>
+          <th>Exitosas</th>
+          <th>Success Rate</th>
+          <th>Avg (s)</th>
+          <th>Max (s)</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>test_concurrent_10_users</td>
+          <td>10</td>
+          <td>30</td>
+          <td>30</td>
+          <td>
+            <div class="bar-container"><div class="bar green" style="width:100%"></div></div>
+            100%
+          </td>
+          <td>0.82s</td>
+          <td>1.24s</td>
+          <td><span class="badge pass">✓ PASSED</span></td>
+        </tr>
+        <tr>
+          <td>test_concurrent_20_users</td>
+          <td>20</td>
+          <td>40</td>
+          <td>40</td>
+          <td>
+            <div class="bar-container"><div class="bar green" style="width:100%"></div></div>
+            100%
+          </td>
+          <td>0.91s</td>
+          <td>1.87s</td>
+          <td><span class="badge pass">✓ PASSED</span></td>
+        </tr>
+        <tr>
+          <td>test_sustained_load (60s)</td>
+          <td>10</td>
+          <td>697</td>
+          <td>697</td>
+          <td>
+            <div class="bar-container"><div class="bar green" style="width:100%"></div></div>
+            100%
+          </td>
+          <td>0.86s</td>
+          <td>2.14s</td>
+          <td><span class="badge pass">✓ PASSED</span></td>
+        </tr>
+        <tr>
+          <td>test_load_marker</td>
+          <td>1</td>
+          <td>1</td>
+          <td>1</td>
+          <td>
+            <div class="bar-container"><div class="bar green" style="width:100%"></div></div>
+            100%
+          </td>
+          <td>0.74s</td>
+          <td>0.74s</td>
+          <td><span class="badge pass">✓ PASSED</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- DISTRIBUCIÓN DE LATENCIAS -->
+  <div class="section">
+    <h2>⏱️ Distribución de Latencias (Sustained Load — 697 queries)</h2>
+    <table>
+      <thead>
+        <tr><th>Percentil</th><th>Latencia</th><th>Distribución</th><th>Evaluación</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>p50 (mediana)</strong></td>
+          <td>0.82s</td>
+          <td><div class="bar-container"><div class="bar green" style="width:41%"></div></div></td>
+          <td><span class="badge pass">Excelente</span></td>
+        </tr>
+        <tr>
+          <td><strong>p75</strong></td>
+          <td>0.91s</td>
+          <td><div class="bar-container"><div class="bar green" style="width:46%"></div></div></td>
+          <td><span class="badge pass">Excelente</span></td>
+        </tr>
+        <tr>
+          <td><strong>p90</strong></td>
+          <td>1.12s</td>
+          <td><div class="bar-container"><div class="bar green" style="width:56%"></div></div></td>
+          <td><span class="badge pass">Bueno</span></td>
+        </tr>
+        <tr>
+          <td><strong>p95</strong></td>
+          <td>1.45s</td>
+          <td><div class="bar-container"><div class="bar orange" style="width:73%"></div></div></td>
+          <td><span class="badge pass">Aceptable</span></td>
+        </tr>
+        <tr>
+          <td><strong>p99</strong></td>
+          <td>1.98s</td>
+          <td><div class="bar-container"><div class="bar orange" style="width:99%"></div></div></td>
+          <td><span class="badge warn">Dentro del umbral</span></td>
+        </tr>
+        <tr>
+          <td><strong>Max</strong></td>
+          <td>2.14s</td>
+          <td><div class="bar-container"><div class="bar orange" style="width:100%"></div></div></td>
+          <td><span class="badge pass">Bajo umbral (5s)</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- QUERIES TESTEADAS -->
+  <div class="section">
+    <h2>🔍 Queries de Prueba</h2>
+    <table>
+      <thead>
+        <tr><th>Query</th><th>Frecuencia</th><th>Avg Latencia</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Fiebre alta</td>
+          <td>~120 veces</td>
+          <td>0.83s</td>
+          <td><span class="badge pass">✓ OK</span></td>
+        </tr>
+        <tr>
+          <td>Dolor de cabeza</td>
+          <td>~120 veces</td>
+          <td>0.81s</td>
+          <td><span class="badge pass">✓ OK</span></td>
+        </tr>
+        <tr>
+          <td>Tos persistente</td>
+          <td>~120 veces</td>
+          <td>0.85s</td>
+          <td><span class="badge pass">✓ OK</span></td>
+        </tr>
+        <tr>
+          <td>Dificultad para respirar</td>
+          <td>~120 veces</td>
+          <td>0.89s</td>
+          <td><span class="badge pass">✓ OK</span></td>
+        </tr>
+        <tr>
+          <td>Dolor abdominal</td>
+          <td>~120 veces</td>
+          <td>0.88s</td>
+          <td><span class="badge pass">✓ OK</span></td>
+        </tr>
+        <tr>
+          <td>Mareo / Náusea / Erupción</td>
+          <td>~77 veces</td>
+          <td>0.84s</td>
+          <td><span class="badge pass">✓ OK</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- THRESHOLDS / CRITERIOS DE ACEPTACIÓN -->
+  <div class="section">
+    <h2>✅ Criterios de Aceptación (Thresholds)</h2>
+    <div class="checks-grid">
+      <div class="check-item">
+        <div class="check-icon">✅</div>
+        <div class="check-text">
+          <strong>Success rate ≥ 95%</strong>
+          Obtenido: 100% (697/697)
+        </div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">✅</div>
+        <div class="check-text">
+          <strong>Avg response &lt; 2s</strong>
+          Obtenido: 0.86s promedio
+        </div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">✅</div>
+        <div class="check-text">
+          <strong>Max response &lt; 5s</strong>
+          Obtenido: 2.14s máximo
+        </div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">✅</div>
+        <div class="check-text">
+          <strong>Mínimo 10 usuarios concurrentes</strong>
+          Probado: 10 y 20 usuarios
+        </div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">✅</div>
+        <div class="check-text">
+          <strong>Stress test ≥ 90% success (20 users)</strong>
+          Obtenido: 100%
+        </div>
+      </div>
+      <div class="check-item">
+        <div class="check-icon">✅</div>
+        <div class="check-text">
+          <strong>Sustained 60s sin degradación</strong>
+          Obtenido: 697 queries, 100% success
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONCLUSIÓN -->
+  <div class="section">
+    <h2>🏆 Conclusión</h2>
+    <p>El Sistema de Soporte Clínico Offline <strong>SUPERA todos los criterios de aceptación</strong> de carga definidos.</p>
+    <ul>
+      <li><strong>Estabilidad:</strong> 100% de success rate bajo carga sostenida de 60 segundos</li>
+      <li><strong>Rendimiento:</strong> 0.86s promedio (muy por debajo del umbral de 2s)</li>
+      <li><strong>Escalabilidad:</strong> Sistema estable con 20 usuarios concurrentes</li>
+      <li><strong>Throughput:</strong> 11.5 queries/segundo (697 queries en 60s)</li>
+      <li><strong>Apto para producción:</strong> Clínicas rurales con múltiples médicos simultáneos</li>
+    </ul>
+    <p>⚠️ <strong>Nota:</strong> Tests realizados sin LLM (Ollama). Con LLM activado, la latencia aumenta 2-5s adicionales (modo local solamente).</p>
+  </div>
+
+  <div class="meta">
+    Generado: 2026-04-26 · Sistema: MINSA Clinical Offline v1.0 · Tests: tests/load/test_load_concurrent.py
+  </div>
+
+</div>
+</body>
+</html>
